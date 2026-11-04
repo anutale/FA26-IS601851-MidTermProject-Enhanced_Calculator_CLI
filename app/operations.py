@@ -249,6 +249,53 @@ class Root(Operation):
         return Decimal(pow(float(a), 1 / float(b)))
 
 
+class Modulus(Operation):
+    """Calculate the remainder after dividing the first number by the second."""
+
+    def validate_operands(self, a: Decimal, b: Decimal) -> None:
+        super().validate_operands(a, b)
+        if b == 0:
+            raise ValidationError("Division by zero is not allowed")
+
+    def execute(self, a: Decimal, b: Decimal) -> Decimal:
+        self.validate_operands(a, b)
+        return a % b
+
+
+class IntegerDivision(Operation):
+    """Divide two numbers and discard the fractional part of the quotient."""
+
+    def validate_operands(self, a: Decimal, b: Decimal) -> None:
+        super().validate_operands(a, b)
+        if b == 0:
+            raise ValidationError("Division by zero is not allowed")
+
+    def execute(self, a: Decimal, b: Decimal) -> Decimal:
+        self.validate_operands(a, b)
+        return a // b
+
+
+class Percentage(Operation):
+    """Calculate what percentage the first number is of the second."""
+
+    def validate_operands(self, a: Decimal, b: Decimal) -> None:
+        super().validate_operands(a, b)
+        if b == 0:
+            raise ValidationError("Division by zero is not allowed")
+
+    def execute(self, a: Decimal, b: Decimal) -> Decimal:
+        self.validate_operands(a, b)
+        return (a / b) * 100
+
+
+class AbsoluteDifference(Operation):
+    """Calculate the absolute difference between two numbers."""
+
+    def execute(self, a: Decimal, b: Decimal) -> Decimal:
+        self.validate_operands(a, b)
+        return abs(a - b)
+
+
 class OperationFactory:
     """
     Factory class for creating operation instances.
@@ -265,7 +312,11 @@ class OperationFactory:
         'multiply': Multiplication,
         'divide': Division,
         'power': Power,
-        'root': Root
+        'root': Root,
+        'modulus': Modulus,
+        'integer_division': IntegerDivision,
+        'percentage': Percentage,
+        'absolute_difference': AbsoluteDifference
     }
 
     @classmethod
