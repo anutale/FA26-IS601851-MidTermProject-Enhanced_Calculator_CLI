@@ -290,7 +290,7 @@ class Calculator:
                 df = pd.read_csv(self.config.history_file)
                 if not df.empty:
                     # Deserialize each row into a Calculation instance
-                    self.history = [
+                    loaded_history = [
                         Calculation.from_dict({
                             'operation': row['operation'],
                             'operand1': row['operand1'],
@@ -300,9 +300,15 @@ class Calculator:
                         })
                         for _, row in df.iterrows()
                     ]
-                    logging.info(f"Loaded {len(self.history)} calculations from history")
                 else:
+                    loaded_history = []
                     logging.info("Loaded empty history file")
+
+                self.history = loaded_history
+                self.undo_stack.clear()
+                self.redo_stack.clear()
+                if loaded_history:
+                    logging.info(f"Loaded {len(self.history)} calculations from history")
             else:
                 # If no history file exists, start with an empty history
                 logging.info("No history file found - starting with empty history")
@@ -362,7 +368,7 @@ class Calculator:
         Undo the last operation.
 
         Restores the calculator's history to the state before the last calculation
-        was performed.
+        was performed. The current state is saved to the redo stack.
 
         Returns:
             bool: True if an operation was undone, False if there was nothing to undo.
@@ -381,7 +387,8 @@ class Calculator:
         """
         Redo the previously undone operation.
 
-        Restores the calculator's history to the state before the last undo.
+        Restores the most recently undone history state. The current state is
+        saved to the undo stack.
 
         Returns:
             bool: True if an operation was redone, False if there was nothing to redo.

@@ -98,16 +98,92 @@ def test_undo(calculator):
     operation = OperationFactory.create_operation('add')
     calculator.set_operation(operation)
     calculator.perform_operation(2, 3)
-    calculator.undo()
+    assert calculator.undo() is True
     assert calculator.history == []
+    assert calculator.undo_stack == []
+    assert len(calculator.redo_stack) == 1
+    assert calculator.redo_stack[-1].history[0].result == Decimal('5')
 
 def test_redo(calculator):
     operation = OperationFactory.create_operation('add')
     calculator.set_operation(operation)
     calculator.perform_operation(2, 3)
-    calculator.undo()
-    calculator.redo()
+    assert calculator.undo() is True
+    assert calculator.redo() is True
     assert len(calculator.history) == 1
+    assert calculator.history[0].result == Decimal('5')
+    assert len(calculator.undo_stack) == 1
+    assert calculator.redo_stack == []
+
+def test_undo_redo_multiple_calculations_preserves_each_history_state(calculator):
+    calculator.set_operation(OperationFactory.create_operation('add'))
+    calculator.perform_operation(2, 3)
+    calculator.set_operation(OperationFactory.create_operation('multiply'))
+    calculator.perform_operation(4, 5)
+
+    assert [entry.result for entry in calculator.history] == [
+        Decimal('5'), Decimal('20')
+    ]
+
+    assert calculator.undo() is True
+    assert [entry.result for entry in calculator.history] == [Decimal('5')]
+    assert calculator.undo() is True
+    assert calculator.history == []
+    assert calculator.undo() is False
+
+    assert calculator.redo() is True
+    assert [entry.result for entry in calculator.history] == [Decimal('5')]
+    assert calculator.redo() is True
+    assert [entry.result for entry in calculator.history] == [
+        Decimal('5'), Decimal('20')
+    ]
+    assert calculator.redo() is False
+    assert len(calculator.undo_stack) == 2
+    assert calculator.redo_stack == []
+
+def test_new_calculation_clears_redo_history(calculator):
+    calculator.set_operation(OperationFactory.create_operation('add'))
+    calculator.perform_operation(2, 3)
+    calculator.perform_operation(4, 5)
+    assert calculator.undo() is True
+    assert len(calculator.redo_stack) == 1
+
+    calculator.set_operation(OperationFactory.create_operation('subtract'))
+    calculator.perform_operation(9, 2)
+
+    assert [entry.result for entry in calculator.history] == [
+        Decimal('5'), Decimal('7')
+    ]
+    assert calculator.redo_stack == []
+    assert calculator.redo() is False
+
+def test_failed_calculation_does_not_change_history_stacks(calculator):
+    calculator.set_operation(OperationFactory.create_operation('add'))
+    calculator.perform_operation(2, 3)
+    original_history = calculator.history.copy()
+    original_undo_stack = calculator.undo_stack.copy()
+    calculator.set_operation(OperationFactory.create_operation('divide'))
+
+    with pytest.raises(ValidationError, match="Division by zero"):
+        calculator.perform_operation(4, 0)
+
+    assert calculator.history == original_history
+    assert calculator.undo_stack == original_undo_stack
+    assert calculator.redo_stack == []
+
+def test_clear_history_clears_undo_and_redo_states(calculator):
+    calculator.set_operation(OperationFactory.create_operation('add'))
+    calculator.perform_operation(2, 3)
+    assert calculator.undo() is True
+    assert calculator.redo_stack
+
+    calculator.clear_history()
+
+    assert calculator.history == []
+    assert calculator.undo_stack == []
+    assert calculator.redo_stack == []
+    assert calculator.undo() is False
+    assert calculator.redo() is False
 
 # Test History Management
 
@@ -143,6 +219,52 @@ def test_load_history(mock_exists, mock_read_csv, calculator):
         assert calculator.history[0].result == Decimal("5")
     except OperationError:
         pytest.fail("Loading history failed due to OperationError")
+
+def test_load_history_replaces_history_and_resets_memento_stacks(calculator):
+    calculator.set_operation(OperationFactory.create_operation('add'))
+    calculator.perform_operation(2, 3)
+    assert calculator.undo()
+    calculator.set_operation(OperationFactory.create_operation('multiply'))
+    calculator.perform_operation(4, 5)
+    calculator.perform_operation(6, 7)
+    assert calculator.undo()
+    assert calculator.undo_stack
+    assert calculator.redo_stack
+
+    with patch('app.calculator.Path.exists', return_value=True), patch(
+        'app.calculator.pd.read_csv',
+        return_value=pd.DataFrame({
+            'operation': ['Addition'],
+            'operand1': ['10'],
+            'operand2': ['5'],
+            'result': ['15'],
+            'timestamp': [datetime.datetime.now().isoformat()],
+        }),
+    ):
+        calculator.load_history()
+
+    assert [entry.result for entry in calculator.history] == [Decimal('15')]
+    assert calculator.undo_stack == []
+    assert calculator.redo_stack == []
+    assert calculator.undo() is False
+    assert calculator.redo() is False
+
+def test_load_empty_history_clears_history_and_memento_stacks(calculator):
+    calculator.set_operation(OperationFactory.create_operation('add'))
+    calculator.perform_operation(2, 3)
+    assert calculator.undo()
+
+    with patch('app.calculator.Path.exists', return_value=True), patch(
+        'app.calculator.pd.read_csv',
+        return_value=pd.DataFrame(
+            columns=['operation', 'operand1', 'operand2', 'result', 'timestamp']
+        ),
+    ):
+        calculator.load_history()
+
+    assert calculator.history == []
+    assert calculator.undo_stack == []
+    assert calculator.redo_stack == []
         
             
 # Test Clearing History
@@ -178,3 +300,15 @@ def test_calculator_repl_help(mock_print, mock_input):
 def test_calculator_repl_addition(mock_print, mock_input):
     calculator_repl()
     mock_print.assert_any_call("\nResult: 5")
+
+def test_calculator_repl_undo_redo_updates_displayed_history():
+    inputs = ['clear', 'add', '2', '3', 'undo', 'history', 'redo', 'history', 'exit']
+    with patch('builtins.input', side_effect=inputs), \
+         patch('builtins.print') as mock_print, \
+         patch('app.calculator.Calculator.save_history'):
+        calculator_repl()
+
+    mock_print.assert_any_call("Operation undone")
+    mock_print.assert_any_call("Operation redone")
+    mock_print.assert_any_call("No calculations in history")
+    mock_print.assert_any_call("1. Addition(2, 3) = 5")
