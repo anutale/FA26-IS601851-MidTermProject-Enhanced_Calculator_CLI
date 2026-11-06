@@ -3,11 +3,48 @@
 ########################
 
 from decimal import Decimal
+from functools import wraps
 import logging
+from typing import Callable
 
 from app.calculator import Calculator
 from app.exceptions import OperationError, ValidationError
 from app.operations import OperationFactory
+
+
+def include_operation_commands(
+    help_menu: Callable[[], list[str]]
+) -> Callable[[], list[str]]:
+    """Decorate a help menu with commands from the operation factory."""
+    @wraps(help_menu)
+    def decorated_help_menu() -> list[str]:
+        lines = help_menu()
+        operation_commands = ", ".join(
+            OperationFactory.get_available_operations()
+        )
+        return [
+            lines[0],
+            f"  {operation_commands} - Perform calculations",
+            *lines[1:],
+        ]
+
+    return decorated_help_menu
+
+
+@include_operation_commands
+def build_help_menu() -> list[str]:
+    """Build the help lines for the REPL's non-operation commands."""
+    return [
+        "\nAvailable commands:",
+        "  history - Display calculation history",
+        "  clear - Clear calculation history",
+        "  undo - Undo the last calculation",
+        "  redo - Redo the last undone calculation",
+        "  save - Manually save calculation history to file using pandas",
+        "  load - Load calculation history from file using pandas",
+        "  help - Display available commands.",
+        "  exit - Exit the application gracefully",
+    ]
 
 
 def calculator_repl():
@@ -30,20 +67,8 @@ def calculator_repl():
 
                 if command == 'help':
                     # Display available commands
-                    print("\nAvailable commands:")
-                    print(
-                        "  add, subtract, multiply, divide, power, root, modulus, "
-                        "integer_division, percentage, absolute_difference - "
-                        "Perform calculations"
-                    )
-                    print("  history - Display calculation history")
-                    print("  clear - Clear calculation history")
-                    print("  undo - Undo the last calculation")
-                    print("  redo - Redo the last undone calculation")
-                    print("  save - Manually save calculation history to file using pandas")
-                    print("  load - Load calculation history from file using pandas")
-                    print("  help - Display available commands.")
-                    print("  exit - Exit the application gracefully")
+                    for line in build_help_menu():
+                        print(line)
                     continue
 
                 if command == 'exit':
@@ -110,11 +135,7 @@ def calculator_repl():
                         print(f"Error loading history: {e}")
                     continue
 
-                if command in [
-                    'add', 'subtract', 'multiply', 'divide', 'power', 'root',
-                    'modulus', 'integer_division', 'percentage',
-                    'absolute_difference'
-                ]:
+                if command in OperationFactory.get_available_operations():
                     # Perform the specified arithmetic operation
                     try:
                         print("\nEnter numbers (or 'cancel' to abort):")

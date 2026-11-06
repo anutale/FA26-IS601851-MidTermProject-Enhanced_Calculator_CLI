@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch, PropertyMock
 from decimal import Decimal
 from tempfile import TemporaryDirectory
 from app.calculator import Calculator
-from app.calculator_repl import calculator_repl
+from app.calculator_repl import build_help_menu, calculator_repl
 from app.calculator_config import CalculatorConfig
 from app.exceptions import OperationError, ValidationError
 from app.history import LoggingObserver, AutoSaveObserver
@@ -378,6 +378,10 @@ def test_calculator_repl_exit(mock_print, mock_input):
 def test_calculator_repl_help(mock_print, mock_input):
     calculator_repl()
     mock_print.assert_any_call("\nAvailable commands:")
+    mock_print.assert_any_call(
+        "  add, subtract, multiply, divide, power, root, modulus, "
+        "integer_division, percentage, absolute_difference - Perform calculations"
+    )
 
 @patch('builtins.input', side_effect=['add', '2', '3', 'exit'])
 @patch('builtins.print')
@@ -503,3 +507,39 @@ def test_calculator_repl_reraises_initialization_error():
             calculator_repl()
 
     mock_print.assert_any_call("Fatal error: startup failed")
+
+def test_help_menu_decorator_includes_registered_operations(monkeypatch):
+    monkeypatch.setattr(
+        OperationFactory,
+        "_operations",
+        OperationFactory._operations.copy(),
+    )
+    OperationFactory.register_operation('custom_add', OperationFactory._operations['add'])
+
+    help_lines = build_help_menu()
+
+    assert "custom_add" in help_lines[1]
+    assert "add" in help_lines[1]
+    assert help_lines[0] == "\nAvailable commands:"
+
+def test_calculator_repl_dispatches_newly_registered_operation(monkeypatch):
+    monkeypatch.setattr(
+        OperationFactory,
+        "_operations",
+        OperationFactory._operations.copy(),
+    )
+    OperationFactory.register_operation(
+        'custom_add',
+        OperationFactory._operations['add'],
+    )
+    calculator_mock = Mock()
+    calculator_mock.perform_operation.return_value = Decimal('5')
+
+    with patch('app.calculator_repl.Calculator', return_value=calculator_mock), \
+         patch('builtins.input', side_effect=['custom_add', '2', '3', 'exit']), \
+         patch('builtins.print') as mock_print:
+        calculator_repl()
+
+    calculator_mock.set_operation.assert_called_once()
+    calculator_mock.perform_operation.assert_called_once_with('2', '3')
+    mock_print.assert_any_call("\nResult: 5")

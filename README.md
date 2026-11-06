@@ -24,10 +24,17 @@ From the project root, create and activate a virtual environment, then install
 the dependencies:
 
 ```bash
-python3 -m venv .venv              # macOS/Linux
-source .venv/bin/activate          # macOS/Linux
-# Windows PowerShell: py -3 -m venv .venv
-#                     .venv\Scripts\Activate.ps1
+# macOS/Linux
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+On Windows PowerShell, create and activate the environment with:
+
+```powershell
+py -3 -m venv .venv
+.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 ```
 
@@ -100,6 +107,15 @@ Undo and redo manage the history state; they do not reverse external side effect
 such as an already-written log entry. Clearing history affects in-memory state;
 use `save` or exit if the empty history should also be written to disk.
 
+The `help` command builds its operation list from the operation factory
+registry. To add an operation at runtime, define a class derived from
+`Operation` and register its command with `OperationFactory`; it will then
+appear in help and be accepted by the REPL without modifying the menu:
+
+```python
+OperationFactory.register_operation("custom", CustomOperation)
+```
+
 ## History, logging, and configuration
 
 By default, the calculator uses the repository root as its base directory:
@@ -124,6 +140,25 @@ calculator initialization:
 cp .env.example .env
 ```
 
+Edit `.env` and set any values you want to override. For example:
+
+```dotenv
+CALCULATOR_LOG_DIR=./logs
+CALCULATOR_HISTORY_DIR=./history
+CALCULATOR_MAX_HISTORY_SIZE=1000
+CALCULATOR_AUTO_SAVE=true
+CALCULATOR_PRECISION=10
+CALCULATOR_MAX_INPUT_VALUE=1e999
+CALCULATOR_DEFAULT_ENCODING=utf-8
+```
+
+The checked-in `.env.example` contains these defaults and is safe to share;
+put machine-specific settings only in the ignored `.env`. Boolean values accept
+`true`/`false` and `1`/`0`. The maximum-history size and precision must be
+positive integers, the maximum input must be a positive finite number, and the
+encoding must be supported by Python. The process environment takes precedence
+over values in `.env`.
+
 | Environment variable | Default | Purpose |
 |---|---|---|
 | `CALCULATOR_BASE_DIR` | Project root | Base location for generated files |
@@ -147,9 +182,42 @@ generated data outside the repository.
 - **Strategy:** each `Operation` implementation provides its own `execute`
   method; the calculator can switch the active operation at runtime.
 - **Observer:** history observers log calculations and optionally auto-save.
+- **Decorator:** a help-menu decorator adds the currently registered operation
+  commands to the REPL's standard command list.
 - **Memento:** snapshots of history support undo/redo.
 - **Data model:** `Calculation` stores operands, operation, result, and
   timestamp, and supports serialization/deserialization.
+
+## Testing and coverage
+
+Run the full test suite from the repository root after installing
+`requirements.txt`:
+
+```bash
+python -m pytest
+```
+
+Pytest runs all tests in `tests/`, reports application coverage in the
+terminal, and writes an HTML report to `htmlcov/`. The project enforces a
+minimum total coverage of 90%; the command exits unsuccessfully if the suite
+falls below that threshold. Open `htmlcov/index.html` in a browser to inspect
+per-file and per-line coverage. To run a focused selection:
+
+```bash
+python -m pytest tests/test_operations.py tests/test_calculation.py
+```
+
+## Continuous integration
+
+The test workflow installs the pinned dependencies and runs pytest with
+coverage enforcement on pushes and pull requests targeting `main`, using an
+Ubuntu runner. It checks that tests pass and total application coverage is at
+least 90%; it does not build or publish a release.
+
+The workflow file is currently stored at
+`.gitbub/workflows/tests.yml`. GitHub Actions only discovers workflow files
+under `.github/workflows/`, so the workflow will not run automatically until
+the directory is corrected to `.github/workflows/`.
 
 ## Project structure
 
@@ -163,7 +231,7 @@ generated data outside the repository.
 ├── .env.example                    # Example calculator configuration
 ├── pytest.ini                      # Pytest discovery and coverage configuration
 ├── module_contents.md              # Course/module material
-├── .gitbub/
+├── .gitbub/                        # Currently misspelled; see CI note above
 │   └── workflows/
 │       └── tests.yml               # CI test workflow
 ├── app/
@@ -190,27 +258,6 @@ generated data outside the repository.
 ├── test_history/                   # Test history fixture data
 └── test_logs/                      # Test log fixture data
 ```
-
-The checked-out workflow directory is currently spelled `.gitbub`. GitHub
-Actions conventionally expects `.github/workflows`; rename the directory if you
-want GitHub to discover and run that workflow automatically.
-
-## Run the tests
-
-Run all tests from the project root:
-
-```bash
-pytest
-```
-
-Run focused tests:
-
-```bash
-pytest tests/test_operations.py tests/test_calculation.py
-```
-
-Pytest is configured to report application coverage in the terminal and
-generate an HTML report under `htmlcov/`.
 
 ## License
 
