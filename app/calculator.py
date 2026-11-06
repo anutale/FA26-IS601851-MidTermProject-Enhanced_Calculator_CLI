@@ -14,7 +14,7 @@ from app.calculation import Calculation
 from app.calculator_config import CalculatorConfig
 from app.calculator_memento import CalculatorMemento
 from app.exceptions import OperationError, ValidationError
-from app.history import HistoryObserver
+from app.history import AutoSaveObserver, HistoryObserver, LoggingObserver
 from app.input_validators import InputValidator
 from app.operations import Operation
 
@@ -63,6 +63,8 @@ class Calculator:
 
         # Initialize observer list for the Observer pattern
         self.observers: List[HistoryObserver] = []
+        self.add_observer(LoggingObserver())
+        self.add_observer(AutoSaveObserver(self))
 
         # Initialize stacks for undo and redo functionality using the Memento pattern
         self.undo_stack: List[CalculatorMemento] = []

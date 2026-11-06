@@ -102,11 +102,11 @@ By default, the calculator uses the repository root as its base directory:
 - History CSV: `history/calculator_history.csv`
 - Log file: `logs/calculator.log`
 
-The REPL registers an observer that logs calculations and another that saves
-history after each calculation when auto-save is enabled. History CSV rows
-contain the operation, both operands, result, and timestamp. The calculator
-also provides `get_history_dataframe()` for retrieving history as a pandas
-DataFrame.
+Each `Calculator` registers an observer that logs calculations and another
+that saves history after each calculation when auto-save is enabled. History
+CSV rows contain the operation, both operands, result, and timestamp. The
+calculator also provides `get_history_dataframe()` for retrieving history as a
+pandas DataFrame.
 
 Configuration can be supplied through constructor arguments or environment
 variables. A local `.env` file is loaded when present; it is ignored by git and

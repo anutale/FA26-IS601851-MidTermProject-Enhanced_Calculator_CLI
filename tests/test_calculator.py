@@ -42,6 +42,26 @@ def test_calculator_initialization(calculator):
     assert calculator.redo_stack == []
     assert calculator.operation_strategy is None
 
+def test_calculator_registers_observers_and_notifies_them(calculator):
+    assert [type(observer) for observer in calculator.observers] == [
+        LoggingObserver,
+        AutoSaveObserver,
+    ]
+
+    calculator.config.auto_save = True
+    calculator.set_operation(OperationFactory.create_operation('add'))
+    calculator.perform_operation(2, 3)
+
+    assert "Calculation performed: Addition (2, 3) = 5" in (
+        calculator.config.log_file.read_text()
+    )
+    saved_history = pd.read_csv(calculator.config.history_file)
+    assert len(saved_history) == 1
+    assert saved_history.loc[0, 'operation'] == "Addition"
+    assert saved_history.loc[0, 'operand1'] == 2
+    assert saved_history.loc[0, 'operand2'] == 3
+    assert saved_history.loc[0, 'result'] == 5
+
 # Test Logging Setup
 
 @patch('app.calculator.logging.info')
@@ -189,6 +209,7 @@ def test_clear_history_clears_undo_and_redo_states(calculator):
 
 @patch('app.calculator.pd.DataFrame.to_csv')
 def test_save_history(mock_to_csv, calculator):
+    calculator.config.auto_save = False
     operation = OperationFactory.create_operation('add')
     calculator.set_operation(operation)
     calculator.perform_operation(2, 3)
