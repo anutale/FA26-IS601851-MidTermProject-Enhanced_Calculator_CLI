@@ -109,26 +109,32 @@ calculator also provides `get_history_dataframe()` for retrieving history as a
 pandas DataFrame.
 
 Configuration can be supplied through constructor arguments or environment
-variables. A local `.env` file is loaded when present; it is ignored by git and
-should not be committed.
+variables. The project loads `.env` from the repository root at startup without
+overriding values already set in the process environment. To create a local
+configuration, copy `.env.example` to `.env`; `.env` is ignored by git and
+should not be committed. Invalid values raise `ConfigurationError` during
+calculator initialization:
+
+```bash
+cp .env.example .env
+```
 
 | Environment variable | Default | Purpose |
 |---|---|---|
 | `CALCULATOR_BASE_DIR` | Project root | Base location for generated files |
 | `CALCULATOR_MAX_HISTORY_SIZE` | `1000` | Maximum number of history entries retained |
-| `CALCULATOR_AUTO_SAVE` | `true` | Auto-save after a calculation (`true` or `1` enables it) |
+| `CALCULATOR_AUTO_SAVE` | `true` | Auto-save after a calculation (`true`/`false`; `1`/`0` are also accepted) |
 | `CALCULATOR_MAX_INPUT_VALUE` | `1e999` | Maximum absolute input value |
 | `CALCULATOR_PRECISION` | `10` | Precision value retained in configuration |
-| `CALCULATOR_DEFAULT_ENCODING` | `utf-8` | Default file-encoding setting |
+| `CALCULATOR_DEFAULT_ENCODING` | `utf-8` | Encoding used for log and history files |
 | `CALCULATOR_HISTORY_DIR` | `<base_dir>/history` | History directory |
 | `CALCULATOR_HISTORY_FILE` | `<history_dir>/calculator_history.csv` | History CSV path |
 | `CALCULATOR_LOG_DIR` | `<base_dir>/logs` | Log directory |
 | `CALCULATOR_LOG_FILE` | `<log_dir>/calculator.log` | Log file path |
 
-The precision and encoding values are configuration fields; they do not
-currently change arithmetic results or the CSV/log writing implementation.
-Directory and file path variables can be used to keep generated data outside
-the repository.
+The precision value is retained in configuration and does not currently change
+arithmetic results. Directory and file path variables can be used to keep
+generated data outside the repository.
 
 ## Design and code organization
 
@@ -149,6 +155,7 @@ the repository.
 ├── LICENSE
 ├── pyproject.toml                  # Project metadata and development extras
 ├── requirements.txt                # Pinned runtime and development dependencies
+├── .env.example                    # Example calculator configuration
 ├── pytest.ini                      # Pytest discovery and coverage configuration
 ├── module_contents.md              # Course/module material
 ├── .gitbub/

@@ -3,18 +3,16 @@
 ########################
 
 from dataclasses import dataclass
+import codecs
 from decimal import Decimal
-from numbers import Number
+from decimal import InvalidOperation
 from pathlib import Path
 import os
-from typing import Optional
+from typing import Optional, Union
 
 from dotenv import load_dotenv
 
 from app.exceptions import ConfigurationError
-
-# Load environment variables from a .env file into the program's environment
-load_dotenv()
 
 
 def get_project_root() -> Path:
@@ -31,6 +29,10 @@ def get_project_root() -> Path:
     current_file = Path(__file__)
     # Navigate up two levels to reach the project root (from app/calculator_config.py to project root)
     return current_file.parent.parent
+
+
+# Load configuration from the project-level .env without overriding the shell.
+load_dotenv(get_project_root() / ".env")
 
 
 @dataclass
@@ -52,7 +54,7 @@ class CalculatorConfig:
         max_history_size: Optional[int] = None,
         auto_save: Optional[bool] = None,
         precision: Optional[int] = None,
-        max_input_value: Optional[Number] = None,
+        max_input_value: Optional[Union[int, float, Decimal]] = None,
         default_encoding: Optional[str] = None
     ):
         """
@@ -68,35 +70,63 @@ class CalculatorConfig:
         """
         # Set base directory to project root by default
         project_root = get_project_root()
-        self.base_dir = base_dir or Path(
-            os.getenv('CALCULATOR_BASE_DIR', str(project_root))
-        ).resolve()
+        configured_base_dir = os.getenv('CALCULATOR_BASE_DIR', str(project_root))
+        self.base_dir = (
+            Path(base_dir).resolve()
+            if base_dir is not None
+            else Path(configured_base_dir).resolve()
+        )
 
         # Maximum history size
-        self.max_history_size = max_history_size or int(
-            os.getenv('CALCULATOR_MAX_HISTORY_SIZE', '1000')
+        self.max_history_size = (
+            max_history_size if max_history_size is not None
+            else self._read_integer('CALCULATOR_MAX_HISTORY_SIZE', 1000)
         )
 
         # Auto-save preference
-        auto_save_env = os.getenv('CALCULATOR_AUTO_SAVE', 'true').lower()
-        self.auto_save = auto_save if auto_save is not None else (
-            auto_save_env == 'true' or auto_save_env == '1'
+        self.auto_save = (
+            auto_save if auto_save is not None
+            else self._read_boolean('CALCULATOR_AUTO_SAVE', True)
         )
 
         # Calculation precision
-        self.precision = precision or int(
-            os.getenv('CALCULATOR_PRECISION', '10')
+        self.precision = (
+            precision if precision is not None
+            else self._read_integer('CALCULATOR_PRECISION', 10)
         )
 
         # Maximum input value allowed
-        self.max_input_value = max_input_value or Decimal(
-            os.getenv('CALCULATOR_MAX_INPUT_VALUE', '1e999')
-        )
+        try:
+            self.max_input_value = Decimal(str(
+                max_input_value if max_input_value is not None
+                else os.getenv('CALCULATOR_MAX_INPUT_VALUE', '1e999')
+            ))
+        except (InvalidOperation, ValueError) as error:
+            raise ConfigurationError(
+                "CALCULATOR_MAX_INPUT_VALUE must be a valid number"
+            ) from error
 
         # Default encoding for file operations
-        self.default_encoding = default_encoding or os.getenv(
-            'CALCULATOR_DEFAULT_ENCODING', 'utf-8'
+        self.default_encoding = (
+            default_encoding if default_encoding is not None
+            else os.getenv('CALCULATOR_DEFAULT_ENCODING', 'utf-8')
         )
+
+    @staticmethod
+    def _read_integer(name: str, default: int) -> int:
+        try:
+            return int(os.getenv(name, str(default)))
+        except ValueError as error:
+            raise ConfigurationError(f"{name} must be an integer") from error
+
+    @staticmethod
+    def _read_boolean(name: str, default: bool) -> bool:
+        value = os.getenv(name, str(default)).strip().lower()
+        if value in {'true', '1'}:
+            return True
+        if value in {'false', '0'}:
+            return False
+        raise ConfigurationError(f"{name} must be 'true' or 'false'")
 
     @property
     def log_dir(self) -> Path:
@@ -108,10 +138,8 @@ class CalculatorConfig:
         Returns:
             Path: The log directory path.
         """
-        return Path(os.getenv(
-            'CALCULATOR_LOG_DIR',
-            str(self.base_dir / "logs")
-        )).resolve()
+        value = os.getenv('CALCULATOR_LOG_DIR', '').strip()
+        return Path(value or self.base_dir / "logs").resolve()
 
     @property
     def history_dir(self) -> Path:
@@ -123,10 +151,8 @@ class CalculatorConfig:
         Returns:
             Path: The history directory path.
         """
-        return Path(os.getenv(
-            'CALCULATOR_HISTORY_DIR',
-            str(self.base_dir / "history")
-        )).resolve()
+        value = os.getenv('CALCULATOR_HISTORY_DIR', '').strip()
+        return Path(value or self.base_dir / "history").resolve()
 
     @property
     def history_file(self) -> Path:
@@ -138,10 +164,8 @@ class CalculatorConfig:
         Returns:
             Path: The history file path.
         """
-        return Path(os.getenv(
-            'CALCULATOR_HISTORY_FILE',
-            str(self.history_dir / "calculator_history.csv")
-        )).resolve()
+        value = os.getenv('CALCULATOR_HISTORY_FILE', '').strip()
+        return Path(value or self.history_dir / "calculator_history.csv").resolve()
 
     @property
     def log_file(self) -> Path:
@@ -153,10 +177,8 @@ class CalculatorConfig:
         Returns:
             Path: The log file path.
         """
-        return Path(os.getenv(
-            'CALCULATOR_LOG_FILE',
-            str(self.log_dir / "calculator.log")
-        )).resolve()
+        value = os.getenv('CALCULATOR_LOG_FILE', '').strip()
+        return Path(value or self.log_dir / "calculator.log").resolve()
 
     def validate(self) -> None:
         """
@@ -172,5 +194,11 @@ class CalculatorConfig:
             raise ConfigurationError("max_history_size must be positive")
         if self.precision <= 0:
             raise ConfigurationError("precision must be positive")
-        if self.max_input_value <= 0:
+        if not self.max_input_value.is_finite() or self.max_input_value <= 0:
             raise ConfigurationError("max_input_value must be positive")
+        try:
+            codecs.lookup(self.default_encoding)
+        except LookupError as error:
+            raise ConfigurationError(
+                f"Unsupported default encoding: {self.default_encoding}"
+            ) from error

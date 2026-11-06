@@ -74,6 +74,39 @@ def test_invalid_max_input_value():
         config = CalculatorConfig(max_input_value=Decimal("-1"))
         config.validate()
 
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("CALCULATOR_MAX_HISTORY_SIZE", "invalid", "must be an integer"),
+        ("CALCULATOR_PRECISION", "invalid", "must be an integer"),
+        ("CALCULATOR_MAX_INPUT_VALUE", "invalid", "must be a valid number"),
+        ("CALCULATOR_AUTO_SAVE", "yes", "must be 'true' or 'false'"),
+    ],
+)
+def test_invalid_environment_configuration(monkeypatch, name, value, message):
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ConfigurationError, match=message):
+        config = CalculatorConfig()
+        config.validate()
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("CALCULATOR_MAX_HISTORY_SIZE", "0", "max_history_size must be positive"),
+        ("CALCULATOR_PRECISION", "0", "precision must be positive"),
+        ("CALCULATOR_MAX_INPUT_VALUE", "0", "max_input_value must be positive"),
+    ],
+)
+def test_non_positive_environment_configuration(monkeypatch, name, value, message):
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ConfigurationError, match=message):
+        CalculatorConfig().validate()
+
+def test_invalid_default_encoding():
+    config = CalculatorConfig(default_encoding="not-a-real-encoding")
+    with pytest.raises(ConfigurationError, match="Unsupported default encoding"):
+        config.validate()
+
 def test_auto_save_env_var_true():
     os.environ['CALCULATOR_AUTO_SAVE'] = 'true'
     config = CalculatorConfig(auto_save=None)
@@ -143,4 +176,3 @@ def test_history_file_property():
     clear_env_vars('CALCULATOR_HISTORY_FILE')
     config = CalculatorConfig(base_dir=Path('/new_base_dir'))
     assert config.history_file == Path('/new_base_dir/history/calculator_history.csv').resolve()
-

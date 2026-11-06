@@ -53,9 +53,14 @@ def test_calculator_registers_observers_and_notifies_them(calculator):
     calculator.perform_operation(2, 3)
 
     assert "Calculation performed: Addition (2, 3) = 5" in (
-        calculator.config.log_file.read_text()
+        calculator.config.log_file.read_text(
+            encoding=calculator.config.default_encoding
+        )
     )
-    saved_history = pd.read_csv(calculator.config.history_file)
+    saved_history = pd.read_csv(
+        calculator.config.history_file,
+        encoding=calculator.config.default_encoding
+    )
     assert len(saved_history) == 1
     assert saved_history.loc[0, 'operation'] == "Addition"
     assert saved_history.loc[0, 'operand1'] == 2

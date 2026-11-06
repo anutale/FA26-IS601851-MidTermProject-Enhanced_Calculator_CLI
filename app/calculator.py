@@ -97,6 +97,7 @@ class Calculator:
             # Configure the basic logging settings
             logging.basicConfig(
                 filename=str(log_file),
+                encoding=self.config.default_encoding,
                 level=logging.INFO,
                 format='%(asctime)s - %(levelname)s - %(message)s',
                 force=True  # Overwrite any existing logging configuration
@@ -263,12 +264,20 @@ class Calculator:
                 # Create a pandas DataFrame from the history data
                 df = pd.DataFrame(history_data)
                 # Write the DataFrame to a CSV file without the index
-                df.to_csv(self.config.history_file, index=False)
+                df.to_csv(
+                    self.config.history_file,
+                    index=False,
+                    encoding=self.config.default_encoding
+                )
                 logging.info(f"History saved successfully to {self.config.history_file}")
             else:
                 # If history is empty, create an empty CSV with headers
                 pd.DataFrame(columns=['operation', 'operand1', 'operand2', 'result', 'timestamp']
-                           ).to_csv(self.config.history_file, index=False)
+                           ).to_csv(
+                               self.config.history_file,
+                               index=False,
+                               encoding=self.config.default_encoding
+                           )
                 logging.info("Empty history saved")
 
         except Exception as e:
@@ -289,7 +298,10 @@ class Calculator:
         try:
             if self.config.history_file.exists():
                 # Read the CSV file into a pandas DataFrame
-                df = pd.read_csv(self.config.history_file)
+                df = pd.read_csv(
+                    self.config.history_file,
+                    encoding=self.config.default_encoding
+                )
                 if not df.empty:
                     # Deserialize each row into a Calculation instance
                     loaded_history = [
