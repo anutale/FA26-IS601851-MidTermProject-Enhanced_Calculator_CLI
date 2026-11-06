@@ -51,6 +51,7 @@ def calculator_repl():
                         calc.save_history()
                         print("History saved successfully.")
                     except Exception as e:
+                        logging.warning("Could not save history before exit: %s", e)
                         print(f"Warning: Could not save history: {e}")
                     print("Goodbye!")
                     break
@@ -94,6 +95,7 @@ def calculator_repl():
                         calc.save_history()
                         print("History saved successfully")
                     except Exception as e:
+                        logging.error("Could not save history: %s", e)
                         print(f"Error saving history: {e}")
                     continue
 
@@ -103,6 +105,7 @@ def calculator_repl():
                         calc.load_history()
                         print("History loaded successfully")
                     except Exception as e:
+                        logging.error("Could not load history: %s", e)
                         print(f"Error loading history: {e}")
                     continue
 
@@ -144,10 +147,12 @@ def calculator_repl():
                     continue
 
                 # Handle unknown commands
+                logging.warning("Unknown command entered: %s", command)
                 print(f"Unknown command: '{command}'. Type 'help' for available commands.")
 
             except KeyboardInterrupt:
                 # Handle Ctrl+C interruption gracefully
+                logging.info("Current operation cancelled by user")
                 print("\nOperation cancelled")
                 continue
             except EOFError:

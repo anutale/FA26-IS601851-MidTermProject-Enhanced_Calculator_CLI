@@ -90,23 +90,23 @@ class Calculator:
         Sets up logging to a file with a specified format and log level.
         """
         try:
-            # Ensure the log directory exists
+            # Ensure the configured log file's parent directory exists.
             os.makedirs(self.config.log_dir, exist_ok=True)
             log_file = self.config.log_file.resolve()
+            log_file.parent.mkdir(parents=True, exist_ok=True)
 
             # Configure the basic logging settings
             logging.basicConfig(
                 filename=str(log_file),
                 encoding=self.config.default_encoding,
                 level=logging.INFO,
-                format='%(asctime)s - %(levelname)s - %(message)s',
+                format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                 force=True  # Overwrite any existing logging configuration
             )
             logging.info(f"Logging initialized at: {log_file}")
         except Exception as e:
-            # Print an error message and re-raise the exception if logging setup fails
-            print(f"Error setting up logging: {e}")
-            raise
+            logging.exception("Could not configure logging")
+            raise OperationError(f"Could not configure logging: {e}") from e
 
     def _setup_directories(self) -> None:
         """
@@ -191,6 +191,7 @@ class Calculator:
             ValidationError: If input validation fails.
         """
         if not self.operation_strategy:
+            logging.error("Cannot perform calculation: no operation is set")
             raise OperationError("No operation set")
 
         try:
@@ -401,6 +402,7 @@ class Calculator:
             bool: True if an operation was undone, False if there was nothing to undo.
         """
         if not self.undo_stack:
+            logging.warning("Undo requested with no calculation to undo")
             return False
         # Pop the last state from the undo stack
         memento = self.undo_stack.pop()
@@ -408,6 +410,7 @@ class Calculator:
         self.redo_stack.append(CalculatorMemento(self.history.copy()))
         # Restore the history from the memento
         self.history = memento.history.copy()
+        logging.info("Undo completed; %d calculations remain", len(self.history))
         return True
 
     def redo(self) -> bool:
@@ -421,6 +424,7 @@ class Calculator:
             bool: True if an operation was redone, False if there was nothing to redo.
         """
         if not self.redo_stack:
+            logging.warning("Redo requested with no calculation to restore")
             return False
         # Pop the last state from the redo stack
         memento = self.redo_stack.pop()
@@ -428,4 +432,5 @@ class Calculator:
         self.undo_stack.append(CalculatorMemento(self.history.copy()))
         # Restore the history from the memento
         self.history = memento.history.copy()
+        logging.info("Redo completed; %d calculations restored", len(self.history))
         return True

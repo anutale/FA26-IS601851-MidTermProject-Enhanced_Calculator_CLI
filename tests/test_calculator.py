@@ -117,6 +117,36 @@ def test_perform_operation_operation_error(calculator):
     with pytest.raises(OperationError, match="No operation set"):
         calculator.perform_operation(2, 3)
 
+def test_logging_records_calculation_and_history_events(calculator):
+    calculator.set_operation(OperationFactory.create_operation('add'))
+    calculator.perform_operation(2, 3)
+    assert calculator.undo()
+    assert calculator.redo()
+
+    log_content = calculator.config.log_file.read_text(
+        encoding=calculator.config.default_encoding
+    )
+    assert "INFO - Calculation performed: Addition (2, 3) = 5" in log_content
+    assert "INFO - Undo completed; 0 calculations remain" in log_content
+    assert "INFO - Redo completed; 1 calculations restored" in log_content
+
+def test_logging_records_no_operation_error(calculator):
+    with pytest.raises(OperationError, match="No operation set"):
+        calculator.perform_operation(2, 3)
+
+    log_content = calculator.config.log_file.read_text(
+        encoding=calculator.config.default_encoding
+    )
+    assert "ERROR - Cannot perform calculation: no operation is set" in log_content
+
+def test_logging_records_empty_undo_warning(calculator):
+    assert calculator.undo() is False
+
+    log_content = calculator.config.log_file.read_text(
+        encoding=calculator.config.default_encoding
+    )
+    assert "WARNING - Undo requested with no calculation to undo" in log_content
+
 # Test Undo/Redo Functionality
 
 def test_undo(calculator):
