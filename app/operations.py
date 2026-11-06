@@ -49,7 +49,7 @@ class Operation(ABC):
         Raises:
             ValidationError: If operands are invalid.
         """
-        pass
+        pass  # pragma: no cover
 
     def __str__(self) -> str:
         """
