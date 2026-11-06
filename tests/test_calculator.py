@@ -221,6 +221,17 @@ def test_save_history(mock_to_csv, calculator):
     calculator.save_history()
     mock_to_csv.assert_called_once()
 
+def test_save_history_reports_csv_write_errors(calculator):
+    with patch(
+        'app.calculator.pd.DataFrame.to_csv',
+        side_effect=OSError("disk is full"),
+    ):
+        with pytest.raises(
+            OperationError,
+            match=r"Could not write history CSV.*disk is full",
+        ):
+            calculator.save_history()
+
 @patch('app.calculator.pd.read_csv')
 @patch('app.calculator.Path.exists', return_value=True)
 def test_load_history(mock_exists, mock_read_csv, calculator):
@@ -245,6 +256,23 @@ def test_load_history(mock_exists, mock_read_csv, calculator):
         assert calculator.history[0].result == Decimal("5")
     except OperationError:
         pytest.fail("Loading history failed due to OperationError")
+
+def test_load_history_reports_malformed_csv_and_preserves_history(calculator):
+    calculator.set_operation(OperationFactory.create_operation('add'))
+    calculator.perform_operation(2, 3)
+    original_history = calculator.history.copy()
+
+    with patch('app.calculator.Path.exists', return_value=True), patch(
+        'app.calculator.pd.read_csv',
+        side_effect=pd.errors.ParserError("malformed CSV"),
+    ):
+        with pytest.raises(
+            OperationError,
+            match=r"Could not read history CSV.*malformed CSV",
+        ):
+            calculator.load_history()
+
+    assert calculator.history == original_history
 
 def test_load_history_replaces_history_and_resets_memento_stacks(calculator):
     calculator.set_operation(OperationFactory.create_operation('add'))

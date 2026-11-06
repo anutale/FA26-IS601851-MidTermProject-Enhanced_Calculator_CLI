@@ -280,10 +280,14 @@ class Calculator:
                            )
                 logging.info("Empty history saved")
 
-        except Exception as e:
-            # Log and raise an OperationError if saving fails
+        except (OSError, UnicodeError, ValueError) as e:
             logging.error(f"Failed to save history: {e}")
-            raise OperationError(f"Failed to save history: {e}")
+            raise OperationError(
+                f"Could not write history CSV to {self.config.history_file}: {e}"
+            ) from e
+        except Exception as e:
+            logging.error(f"Failed to save history: {e}")
+            raise OperationError(f"Failed to save history: {e}") from e
 
     def load_history(self) -> None:
         """
@@ -326,10 +330,19 @@ class Calculator:
             else:
                 # If no history file exists, start with an empty history
                 logging.info("No history file found - starting with empty history")
-        except Exception as e:
-            # Log and raise an OperationError if loading fails
+        except (
+            OSError,
+            UnicodeError,
+            pd.errors.EmptyDataError,
+            pd.errors.ParserError,
+        ) as e:
             logging.error(f"Failed to load history: {e}")
-            raise OperationError(f"Failed to load history: {e}")
+            raise OperationError(
+                f"Could not read history CSV from {self.config.history_file}: {e}"
+            ) from e
+        except Exception as e:
+            logging.error(f"Failed to load history: {e}")
+            raise OperationError(f"Failed to load history: {e}") from e
 
     def get_history_dataframe(self) -> pd.DataFrame:
         """

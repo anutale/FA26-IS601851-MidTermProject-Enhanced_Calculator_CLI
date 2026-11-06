@@ -78,6 +78,11 @@ Invalid numeric input, values over the configured input limit, unsupported
 operations, and invalid operands are reported as errors rather than silently
 producing a result.
 
+Inputs must be finite numeric values within the configured maximum absolute
+value; for example, `NaN`, infinity, booleans, and values beyond the limit are
+rejected with a corrective error message. CSV read/write failures are reported
+as `OperationError` messages that identify the history file path.
+
 ## REPL commands
 
 | Command | Behavior |
