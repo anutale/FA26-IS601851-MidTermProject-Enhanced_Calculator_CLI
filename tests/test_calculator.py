@@ -396,3 +396,110 @@ def test_calculator_repl_undo_redo_updates_displayed_history():
     mock_print.assert_any_call("Operation redone")
     mock_print.assert_any_call("No calculations in history")
     mock_print.assert_any_call("1. Addition(2, 3) = 5")
+
+def test_calculator_repl_handles_empty_history_and_management_commands():
+    calculator_mock = Mock()
+    calculator_mock.show_history.return_value = []
+    calculator_mock.undo.return_value = False
+    calculator_mock.redo.return_value = False
+    inputs = ['help', 'history', 'undo', 'redo', 'clear', 'save', 'load', 'exit']
+
+    with patch('app.calculator_repl.Calculator', return_value=calculator_mock), \
+         patch('builtins.input', side_effect=inputs), \
+         patch('builtins.print') as mock_print:
+        calculator_repl()
+
+    mock_print.assert_any_call("No calculations in history")
+    mock_print.assert_any_call("Nothing to undo")
+    mock_print.assert_any_call("Nothing to redo")
+    mock_print.assert_any_call("History cleared")
+    mock_print.assert_any_call("History saved successfully")
+    mock_print.assert_any_call("History loaded successfully")
+    calculator_mock.clear_history.assert_called_once_with()
+    calculator_mock.save_history.assert_called()
+    calculator_mock.load_history.assert_called_once_with()
+
+@pytest.mark.parametrize(
+    ("command", "error_message"),
+    [
+        ('save', "Error saving history: write failed"),
+        ('load', "Error loading history: read failed"),
+    ],
+)
+def test_calculator_repl_reports_history_io_failures(command, error_message):
+    calculator_mock = Mock()
+    calculator_mock.save_history.side_effect = (
+        RuntimeError("write failed") if command == 'save' else None
+    )
+    calculator_mock.load_history.side_effect = (
+        RuntimeError("read failed") if command == 'load' else None
+    )
+    with patch('app.calculator_repl.Calculator', return_value=calculator_mock), \
+         patch('builtins.input', side_effect=[command, 'exit']), \
+         patch('builtins.print') as mock_print:
+        calculator_repl()
+
+    mock_print.assert_any_call(error_message)
+
+def test_calculator_repl_reports_exit_save_failure():
+    calculator_mock = Mock()
+    calculator_mock.save_history.side_effect = OSError("disk unavailable")
+    with patch('app.calculator_repl.Calculator', return_value=calculator_mock), \
+         patch('builtins.input', side_effect=['exit']), \
+         patch('builtins.print') as mock_print:
+        calculator_repl()
+
+    mock_print.assert_any_call(
+        "Warning: Could not save history: disk unavailable"
+    )
+
+def test_calculator_repl_handles_unknown_command_cancellation_and_eof():
+    calculator_mock = Mock()
+    inputs = [
+        'not-a-command',
+        'add', 'cancel',
+        'add', '2', 'cancel',
+        EOFError(),
+    ]
+    with patch('app.calculator_repl.Calculator', return_value=calculator_mock), \
+         patch('builtins.input', side_effect=inputs), \
+         patch('builtins.print') as mock_print:
+        calculator_repl()
+
+    mock_print.assert_any_call(
+        "Unknown command: 'not-a-command'. Type 'help' for available commands."
+    )
+    assert sum(
+        call.args == ("Operation cancelled",)
+        for call in mock_print.call_args_list
+    ) == 2
+    mock_print.assert_any_call("\nInput terminated. Exiting...")
+    calculator_mock.perform_operation.assert_not_called()
+
+def test_calculator_repl_handles_keyboard_interrupt():
+    with patch('app.calculator_repl.Calculator', return_value=Mock()), \
+         patch('builtins.input', side_effect=[KeyboardInterrupt(), EOFError()]), \
+         patch('builtins.print') as mock_print:
+        calculator_repl()
+
+    mock_print.assert_any_call("\nOperation cancelled")
+
+def test_calculator_repl_reports_unexpected_calculation_error():
+    calculator_mock = Mock()
+    calculator_mock.perform_operation.side_effect = RuntimeError("unexpected")
+    with patch('app.calculator_repl.Calculator', return_value=calculator_mock), \
+         patch('builtins.input', side_effect=['add', '2', '3', 'exit']), \
+         patch('builtins.print') as mock_print:
+        calculator_repl()
+
+    mock_print.assert_any_call("Unexpected error: unexpected")
+
+def test_calculator_repl_reraises_initialization_error():
+    with patch(
+        'app.calculator_repl.Calculator',
+        side_effect=RuntimeError("startup failed"),
+    ), patch('builtins.print') as mock_print:
+        with pytest.raises(RuntimeError, match="startup failed"):
+            calculator_repl()
+
+    mock_print.assert_any_call("Fatal error: startup failed")

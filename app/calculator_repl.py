@@ -36,13 +36,14 @@ def calculator_repl():
                         "integer_division, percentage, absolute_difference - "
                         "Perform calculations"
                     )
-                    print("  history - Show calculation history")
+                    print("  history - Display calculation history")
                     print("  clear - Clear calculation history")
                     print("  undo - Undo the last calculation")
                     print("  redo - Redo the last undone calculation")
-                    print("  save - Save calculation history to file")
-                    print("  load - Load calculation history from file")
-                    print("  exit - Exit the calculator")
+                    print("  save - Manually save calculation history to file using pandas")
+                    print("  load - Load calculation history from file using pandas")
+                    print("  help - Display available commands.")
+                    print("  exit - Exit the application gracefully")
                     continue
 
                 if command == 'exit':
